@@ -83,6 +83,78 @@ void DragStrip::mouseDrag(const juce::MouseEvent& e)
 }
 
 //==============================================================================
+// DragOverlay — native overlay that appears on top of a track for dragging
+//==============================================================================
+
+void DragOverlay::showForTrack(const juce::String& trackName, const juce::File& trackFile,
+                               juce::Rectangle<int> bounds)
+{
+    name = trackName;
+    file = trackFile;
+    active = true;
+    dragging = false;
+    setBounds(bounds);
+    setVisible(true);
+    toFront(true);
+    repaint();
+    GhostLog::write("[DragOverlay] Showing for: " + trackName + " at " +
+                    juce::String(bounds.getX()) + "," + juce::String(bounds.getY()) +
+                    " " + juce::String(bounds.getWidth()) + "x" + juce::String(bounds.getHeight()));
+}
+
+void DragOverlay::dismiss()
+{
+    active = false;
+    dragging = false;
+    setVisible(false);
+}
+
+void DragOverlay::paint(juce::Graphics& g)
+{
+    if (!active) return;
+
+    // Semi-transparent background with green border
+    g.setColour(juce::Colour(0xDD0A0412));
+    g.fillRoundedRectangle(getLocalBounds().toFloat(), 6.0f);
+    g.setColour(juce::Colour(0xFF00FFC8));
+    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), 6.0f, 2.0f);
+
+    // Track name
+    g.setColour(juce::Colours::white);
+    g.setFont(juce::Font(13.0f, juce::Font::bold));
+    g.drawText(name, getLocalBounds().reduced(12, 0), juce::Justification::centredLeft);
+
+    // "Drag to DAW" hint on right
+    g.setColour(juce::Colour(0xFF00FFC8).withAlpha(0.8f));
+    g.setFont(juce::Font(11.0f));
+    g.drawText("Drag to DAW", getLocalBounds().reduced(12, 0), juce::Justification::centredRight);
+}
+
+void DragOverlay::mouseDown(const juce::MouseEvent& e)
+{
+    dragStart = e.getPosition();
+    dragging = false;
+}
+
+void DragOverlay::mouseDrag(const juce::MouseEvent& e)
+{
+    if (!active || !file.existsAsFile()) return;
+    if (!dragging && e.getDistanceFromDragStart() > 4)
+    {
+        dragging = true;
+        GhostLog::write("[DragOverlay] Starting drag: " + file.getFullPathName());
+        juce::DragAndDropContainer::performExternalDragDropOfFiles(
+            { file.getFullPathName() }, false, this);
+    }
+}
+
+void DragOverlay::mouseUp(const juce::MouseEvent&)
+{
+    if (!dragging)
+        dismiss(); // Click without drag = dismiss
+}
+
+//==============================================================================
 // GhostSessionEditor
 //==============================================================================
 
@@ -139,13 +211,91 @@ GhostSessionEditor::GhostSessionEditor(GhostSessionProcessor& p)
             resized(); // Show the strip
             complete(juce::var(items.size()));
         })
+        .withNativeFunction("prepareTrackDrag", [this](const juce::Array<juce::var>& args,
+                                                      juce::WebBrowserComponent::NativeFunctionCompletion complete)
+        {
+            // Args: [{ url, name, x, y, width, height }]
+            if (args.isEmpty()) { complete(juce::var(false)); return; }
+            auto* obj = args[0].getDynamicObject();
+            if (!obj) { complete(juce::var(false)); return; }
+
+            auto url = obj->getProperty("url").toString();
+            auto trackName = obj->getProperty("name").toString();
+            int x = (int)obj->getProperty("x");
+            int y = (int)obj->getProperty("y");
+            int w = (int)obj->getProperty("width");
+            int h = (int)obj->getProperty("height");
+
+            if (url.isEmpty() || trackName.isEmpty()) { complete(juce::var(false)); return; }
+
+            GhostLog::write("[PrepDrag] Track: " + trackName + " at " +
+                            juce::String(x) + "," + juce::String(y));
+
+            // Download file to temp
+            auto tempDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                               .getChildFile("GhostSession");
+            if (!tempDir.exists()) tempDir.createDirectory();
+
+            auto fileName = trackName + ".wav";
+            auto destFile = tempDir.getChildFile(fileName);
+
+            if (!destFile.existsAsFile() || destFile.getSize() == 0)
+            {
+                GhostLog::write("[PrepDrag] Downloading: " + fileName);
+                juce::URL downloadUrl(url);
+                auto stream = downloadUrl.createInputStream(
+                    juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
+                        .withConnectionTimeoutMs(15000));
+                if (stream)
+                {
+                    juce::FileOutputStream fos(destFile);
+                    if (fos.openedOk()) { fos.writeFromInputStream(*stream, -1); fos.flush(); }
+                }
+            }
+
+            if (destFile.existsAsFile() && destFile.getSize() > 0)
+            {
+                // Position overlay on top of the track in the WebView
+                auto webBounds = webView->getBounds();
+                auto overlayBounds = juce::Rectangle<int>(
+                    webBounds.getX() + x, webBounds.getY() + y, w, h);
+
+                juce::MessageManager::callAsync([this, trackName, destFile, overlayBounds]()
+                {
+                    dragOverlay.showForTrack(trackName, destFile, overlayBounds);
+                });
+
+                complete(juce::var(true));
+            }
+            else
+            {
+                complete(juce::var(false));
+            }
+        })
         .withUserScript(
             "window.__ghostExportForDrag = function(tracks) {"
             "  if (window.__JUCE__ && window.__JUCE__.backend) {"
             "    try {"
-            "      var fn = window.__JUCE__.backend.getNativeFunction('exportForDrag');"
-            "      if (fn) { fn.apply(null, tracks); return true; }"
+            "      window.__JUCE__.backend.emitEvent('__juce__invoke', {"
+            "        name: 'exportForDrag',"
+            "        params: tracks,"
+            "        resultId: Date.now()"
+            "      });"
+            "      return true;"
             "    } catch(e) { console.log('Export error:', e); }"
+            "  }"
+            "  return false;"
+            "};"
+            "window.__ghostPrepareTrackDrag = function(trackInfo) {"
+            "  if (window.__JUCE__ && window.__JUCE__.backend) {"
+            "    try {"
+            "      window.__JUCE__.backend.emitEvent('__juce__invoke', {"
+            "        name: 'prepareTrackDrag',"
+            "        params: [trackInfo],"
+            "        resultId: Date.now()"
+            "      });"
+            "      return true;"
+            "    } catch(e) { console.log('PrepDrag error:', e); }"
             "  }"
             "  return false;"
             "};"
@@ -154,6 +304,7 @@ GhostSessionEditor::GhostSessionEditor(GhostSessionProcessor& p)
     webView = std::make_unique<GhostWebView>(options, p);
     addAndMakeVisible(*webView);
     addAndMakeVisible(dragStrip);
+    addChildComponent(dragOverlay); // Hidden initially
 
     webView->goToURL(getAppUrl());
 
@@ -206,7 +357,7 @@ void GhostSessionEditor::resized()
 
 juce::String GhostSessionEditor::getAppUrl() const
 {
-    juce::String url = "http://localhost:3000";
+    juce::String url = "https://ghost-session-beta-production.up.railway.app";
     auto token = proc.getClient().getAuthToken();
     if (token.isNotEmpty())
         url += "?token=" + juce::URL::addEscapeChars(token, true) + "&mode=plugin";

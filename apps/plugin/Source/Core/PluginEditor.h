@@ -30,6 +30,29 @@ private:
 };
 
 //==============================================================================
+/** Native overlay that appears on top of a track waveform for drag-to-DAW. */
+class DragOverlay : public juce::Component
+{
+public:
+    void showForTrack(const juce::String& trackName, const juce::File& trackFile,
+                      juce::Rectangle<int> bounds);
+    void dismiss();
+    bool isActive() const { return active; }
+
+    void paint(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& e) override;
+    void mouseDrag(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
+
+private:
+    bool active = false;
+    bool dragging = false;
+    juce::String name;
+    juce::File file;
+    juce::Point<int> dragStart;
+};
+
+//==============================================================================
 class GhostSessionEditor : public juce::AudioProcessorEditor,
                            public juce::DragAndDropContainer
 {
@@ -41,11 +64,13 @@ public:
     void resized() override;
 
     DragStrip& getDragStrip() { return dragStrip; }
+    DragOverlay& getDragOverlay() { return dragOverlay; }
 
 private:
     GhostSessionProcessor& proc;
     std::unique_ptr<GhostWebView> webView;
     DragStrip dragStrip;
+    DragOverlay dragOverlay;
 
     juce::String getAppUrl() const;
 

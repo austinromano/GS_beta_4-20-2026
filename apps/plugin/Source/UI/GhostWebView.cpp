@@ -100,6 +100,8 @@ void GhostWebView::handleWebMessage(const juce::String& message)
     }
     else if (message.startsWith("upload-recording:"))
         handleUploadRecording("ghost://upload-recording?" + message.fromFirstOccurrenceOf(":", false, false));
+    else if (message.startsWith("drag-to-daw:"))
+        handleDragToDaw("ghost://drag-to-daw?" + message.fromFirstOccurrenceOf(":", false, false));
 }
 
 void GhostWebView::timerCallback()
