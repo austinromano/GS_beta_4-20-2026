@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, memo } from 'react';
+import { motion } from 'framer-motion';
 import { useAudioStore } from '../../stores/audioStore';
 import { api } from '../../lib/api';
 import { audioBufferCache, cacheBuffer, formatDate } from '../../lib/audio';
@@ -142,7 +143,15 @@ export default memo(function StemRow({
   const displayName = name.replace(/\.(wav|mp3|flac|aiff|ogg|m4a)$/i, '').replace(/_/g, ' ');
 
   return (
-    <div className="relative rounded-xl overflow-visible border border-white/5 hover:border-white/10 transition-colors">
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8, scale: 0.98 }}
+      whileHover={{ y: -1 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.6 }}
+      className="relative rounded-xl overflow-visible border border-white/[0.06] hover:border-ghost-purple/40 hover:shadow-[0_4px_20px_rgba(139,92,246,0.15)] transition-[border-color,box-shadow] duration-200"
+    >
     <div
       className={`group relative flex items-center rounded-xl overflow-hidden ${compact ? 'h-[48px]' : 'h-[95px]'}`}
       style={widthPercent !== undefined && widthPercent < 100 ? { width: `${widthPercent}%` } : undefined}
@@ -219,6 +228,6 @@ export default memo(function StemRow({
         </div>
       </div>
     </div>
-    </div>
+    </motion.div>
   );
 });
