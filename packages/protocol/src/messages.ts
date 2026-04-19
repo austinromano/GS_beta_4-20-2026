@@ -130,6 +130,8 @@ export interface ServerToClientEvents {
     fromUserId: string;
     toUserId: string;
     text: string;
+    audioFileId?: string | null;
+    audioFileName?: string | null;
     read: boolean;
     createdAt: string;
   }) => void;

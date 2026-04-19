@@ -147,6 +147,8 @@ export const directMessages = sqliteTable('direct_messages', {
   fromUserId: text('from_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   toUserId: text('to_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   text: text('text').notNull(),
+  audioFileId: text('audio_file_id'),
+  audioFileName: text('audio_file_name'),
   read: integer('read', { mode: 'boolean' }).notNull().default(false),
   createdAt: timestamp('created_at').notNull(),
 });

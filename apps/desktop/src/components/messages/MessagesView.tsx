@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import Avatar from '../common/Avatar';
 import { useDmStore } from '../../stores/dmStore';
 import { useAuthStore } from '../../stores/authStore';
+import DmAudioBubble from './DmAudioBubble';
 
 interface Friend {
   id: string;
@@ -11,6 +12,12 @@ interface Friend {
 
 interface Props {
   friends: Friend[];
+}
+
+const AUDIO_EXT_RE = /\.(wav|mp3|flac|aiff|ogg|m4a|aac)$/i;
+
+function isAudioFile(f: File): boolean {
+  return f.type.startsWith('audio/') || AUDIO_EXT_RE.test(f.name);
 }
 
 function fmtDay(iso: string): string {
@@ -27,6 +34,13 @@ function fmtBubbleTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+function previewLabel(lastText: string, lastHasAudio: boolean, lastFromMe: boolean): string {
+  const prefix = lastFromMe ? 'You: ' : '';
+  if (lastHasAudio && !lastText) return `${prefix}🎵 Audio`;
+  if (lastHasAudio && lastText) return `${prefix}🎵 ${lastText}`;
+  return `${prefix}${lastText}`;
+}
+
 export default function MessagesView({ friends }: Props) {
   const currentUser = useAuthStore((s) => s.user);
   const currentUserId = currentUser?.id;
@@ -35,7 +49,12 @@ export default function MessagesView({ friends }: Props) {
     bootstrap, openConversation, send, setActive,
   } = useDmStore();
   const [draft, setDraft] = useState('');
+  const [pendingAudio, setPendingAudio] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -57,7 +76,13 @@ export default function MessagesView({ friends }: Props) {
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [activeMessages.length, activeUserId]);
 
-  // Merge friends without an existing conversation so they still appear in the left column.
+  useEffect(() => {
+    // Reset pending attachment when switching conversations.
+    setPendingAudio(null);
+    setDraft('');
+    setError('');
+  }, [activeUserId]);
+
   const sidebarEntries = useMemo(() => {
     const seen = new Set(conversations.map((c) => c.userId));
     const extraFriends = friends
@@ -69,20 +94,58 @@ export default function MessagesView({ friends }: Props) {
         lastText: '',
         lastAt: '',
         lastFromMe: false,
+        lastHasAudio: false,
         unread: 0,
       }));
     return [...conversations, ...extraFriends];
   }, [conversations, friends, currentUserId]);
 
-  const handleSend = () => {
-    if (!activeUserId || !draft.trim()) return;
-    send(activeUserId, draft);
-    setDraft('');
+  const pickFile = () => fileInputRef.current?.click();
+
+  const handleFiles = (files: FileList | File[] | null) => {
+    if (!files) return;
+    const list = Array.from(files);
+    const audio = list.find(isAudioFile);
+    if (!audio) {
+      setError('Only audio files are supported (wav, mp3, flac, aiff, ogg, m4a, aac)');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    if (audio.size > 50 * 1024 * 1024) {
+      setError('File too large (50MB max)');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    setPendingAudio(audio);
+    setError('');
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
+  const handleSend = async () => {
+    if (!activeUserId || sending) return;
+    const text = draft.trim();
+    if (!text && !pendingAudio) return;
+    setSending(true);
+    try {
+      await send(activeUserId, { text: text || undefined, audioFile: pendingAudio || undefined });
+      setDraft('');
+      setPendingAudio(null);
+    } catch (err: any) {
+      setError(err?.message || 'Send failed');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden rounded-2xl glass glass-glow">
-      {/* Left column: conversations + friends */}
+      {/* Left column */}
       <div className="w-[260px] shrink-0 flex flex-col border-r border-white/[0.06] min-h-0">
         <div className="px-4 pt-4 pb-3">
           <h2 className="text-[17px] font-bold text-white tracking-tight">Messages</h2>
@@ -120,7 +183,7 @@ export default function MessagesView({ friends }: Props) {
                     {c.lastAt && <span className="text-[10px] text-white/30 shrink-0">{fmtDay(c.lastAt)}</span>}
                   </div>
                   <div className="text-[12px] text-white/40 truncate mt-0.5">
-                    {c.lastText ? (c.lastFromMe ? `You: ${c.lastText}` : c.lastText) : <span className="italic">Say hi</span>}
+                    {c.lastText || c.lastHasAudio ? previewLabel(c.lastText, c.lastHasAudio, c.lastFromMe) : <span className="italic">Say hi</span>}
                   </div>
                 </div>
               </button>
@@ -129,8 +192,13 @@ export default function MessagesView({ friends }: Props) {
         </div>
       </div>
 
-      {/* Right column: selected conversation */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+      {/* Right column */}
+      <div
+        className="flex-1 flex flex-col min-w-0 min-h-0 relative"
+        onDragOver={(e) => { if (activeFriend) { e.preventDefault(); setDragOver(true); } }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+      >
         {activeFriend ? (
           <>
             <div className="px-5 py-3 border-b border-white/[0.06] flex items-center gap-3 shrink-0">
@@ -146,7 +214,7 @@ export default function MessagesView({ friends }: Props) {
                 <div className="h-full flex items-center justify-center text-center">
                   <div>
                     <p className="text-[14px] font-semibold text-white/70 mb-1">No messages yet</p>
-                    <p className="text-[12px] text-white/40">Send the first message below.</p>
+                    <p className="text-[12px] text-white/40">Send the first message — drag an audio file in to attach.</p>
                   </div>
                 </div>
               ) : activeMessages.map((msg, idx) => {
@@ -161,15 +229,20 @@ export default function MessagesView({ friends }: Props) {
                         <Avatar name={activeFriend.displayName} src={activeFriend.avatarUrl} size="sm" />
                       </div>
                     )}
-                    <div className={`flex flex-col max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
-                      <div
-                        className={`px-3.5 py-2 text-[13px] leading-[1.4] break-words rounded-[18px] ${
-                          isOwn ? 'text-white rounded-br-md' : 'text-ghost-text-primary rounded-bl-md'
-                        }`}
-                        style={{ background: isOwn ? '#7C3AED' : 'rgba(255,255,255,0.08)' }}
-                      >
-                        {msg.text}
-                      </div>
+                    <div className={`flex flex-col max-w-[70%] gap-1 ${isOwn ? 'items-end' : 'items-start'}`}>
+                      {msg.audioFileId && (
+                        <DmAudioBubble fileId={msg.audioFileId} fileName={msg.audioFileName || 'audio.wav'} isOwn={isOwn} />
+                      )}
+                      {msg.text && (
+                        <div
+                          className={`px-3.5 py-2 text-[13px] leading-[1.4] break-words rounded-[18px] ${
+                            isOwn ? 'text-white rounded-br-md' : 'text-ghost-text-primary rounded-bl-md'
+                          }`}
+                          style={{ background: isOwn ? '#7C3AED' : 'rgba(255,255,255,0.08)' }}
+                        >
+                          {msg.text}
+                        </div>
+                      )}
                       {!sameAsPrev && (
                         <span className="text-[10px] text-white/30 mt-1 px-2">{fmtBubbleTime(msg.createdAt)}</span>
                       )}
@@ -179,25 +252,83 @@ export default function MessagesView({ friends }: Props) {
               })}
             </div>
 
+            {/* Pending attachment preview */}
+            {pendingAudio && (
+              <div className="mx-4 mb-2 px-3 py-2 rounded-xl flex items-center gap-3 shrink-0" style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <path d="M9 18V5l12-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="16" r="3" />
+                </svg>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] font-semibold text-white truncate">{pendingAudio.name}</div>
+                  <div className="text-[11px] text-white/40">{(pendingAudio.size / (1024 * 1024)).toFixed(1)} MB · ready to send</div>
+                </div>
+                <button onClick={() => setPendingAudio(null)} className="shrink-0 text-white/40 hover:text-white transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
+            )}
+
+            {error && (
+              <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-[12px] text-red-300 shrink-0" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                {error}
+              </div>
+            )}
+
             <div className="px-4 pb-4 pt-2 shrink-0">
               <div className="flex items-center bg-white/[0.04] rounded-full border border-white/[0.08] pr-1">
+                <button
+                  onClick={pickFile}
+                  title="Attach audio"
+                  className="shrink-0 w-10 h-10 flex items-center justify-center text-white/50 hover:text-ghost-green transition-colors"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
                 <input
-                  className="flex-1 min-w-0 bg-transparent text-[14px] text-ghost-text-primary placeholder:text-ghost-text-muted pl-4 py-2.5 pr-2 outline-none"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="audio/*,.wav,.mp3,.flac,.aiff,.ogg,.m4a,.aac"
+                  className="hidden"
+                  onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
+                />
+                <input
+                  className="flex-1 min-w-0 bg-transparent text-[14px] text-ghost-text-primary placeholder:text-ghost-text-muted px-2 py-2.5 outline-none"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                  placeholder={`Message ${activeFriend.displayName}...`}
+                  placeholder={pendingAudio ? 'Add a caption (optional)...' : `Message ${activeFriend.displayName}...`}
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!draft.trim()}
+                  disabled={sending || (!draft.trim() && !pendingAudio)}
                   className="shrink-0 h-9 px-4 rounded-full text-[13px] font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                   style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #4C1D95 100%)' }}
                 >
-                  Send
+                  {sending ? 'Sending...' : 'Send'}
                 </button>
               </div>
+              <p className="text-[10px] text-white/25 mt-2 text-center">
+                Drag audio files anywhere in this pane to attach
+              </p>
             </div>
+
+            {/* Drag-over overlay */}
+            {dragOver && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(10,4,18,0.7)', backdropFilter: 'blur(4px)' }}>
+                <div className="px-8 py-6 rounded-2xl border-2 border-dashed border-ghost-green/60 text-center" style={{ background: 'rgba(0,255,200,0.08)' }}>
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#00FFC8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <p className="text-[15px] font-bold text-white">Drop audio to attach</p>
+                  <p className="text-[12px] text-white/50 mt-0.5">wav, mp3, flac, aiff, ogg, m4a, aac</p>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center px-8">
@@ -209,7 +340,7 @@ export default function MessagesView({ friends }: Props) {
               </div>
               <h3 className="text-[18px] font-bold text-white mb-1.5">Your messages</h3>
               <p className="text-[13px] text-white/50 leading-[1.5]">
-                Pick a friend on the left to start a direct conversation — they'll show up online if they're active right now.
+                Pick a friend on the left to start a direct conversation — you can drag audio files straight into the thread.
               </p>
             </div>
           </div>

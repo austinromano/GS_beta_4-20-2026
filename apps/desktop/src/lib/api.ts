@@ -178,14 +178,24 @@ export const api = {
 
   // Direct messages
   listDmConversations: () =>
-    request<{ userId: string; displayName: string; avatarUrl: string | null; lastText: string; lastAt: string; lastFromMe: boolean; unread: number }[]>(
+    request<{ userId: string; displayName: string; avatarUrl: string | null; lastText: string; lastAt: string; lastFromMe: boolean; lastHasAudio: boolean; unread: number }[]>(
       'GET', '/dm/conversations'),
   getDmHistory: (userId: string) =>
-    request<{ id: string; fromUserId: string; toUserId: string; text: string; read: boolean; createdAt: string }[]>(
+    request<{ id: string; fromUserId: string; toUserId: string; text: string; audioFileId: string | null; audioFileName: string | null; read: boolean; createdAt: string }[]>(
       'GET', `/dm/${userId}`),
-  sendDm: (userId: string, text: string) =>
-    request<{ id: string; fromUserId: string; toUserId: string; text: string; read: boolean; createdAt: string }>(
-      'POST', `/dm/${userId}`, { text }),
+  sendDm: (userId: string, data: { text?: string; audioFileId?: string; audioFileName?: string }) =>
+    request<{ id: string; fromUserId: string; toUserId: string; text: string; audioFileId: string | null; audioFileName: string | null; read: boolean; createdAt: string }>(
+      'POST', `/dm/${userId}`, data),
+  uploadDmAudio: async (file: File): Promise<{ fileId: string; fileName: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(`${BASE_URL}/dm/upload`, { method: 'POST', headers, body: formData });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Upload failed');
+    return json.data;
+  },
   markDmRead: (userId: string) => request<void>('POST', `/dm/${userId}/read`),
   getDmUnreadTotal: () => request<{ count: number }>('GET', '/dm/unread-count/total'),
 };

@@ -180,6 +180,8 @@ export async function initDatabase() {
       from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       text TEXT NOT NULL,
+      audio_file_id TEXT,
+      audio_file_name TEXT,
       read INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
@@ -193,6 +195,8 @@ export async function initDatabase() {
     `ALTER TABLE users ADD COLUMN avatar_data TEXT`,
     `ALTER TABLE users ADD COLUMN avatar_mime TEXT`,
     `ALTER TABLE files ADD COLUMN peaks TEXT`,
+    `ALTER TABLE direct_messages ADD COLUMN audio_file_id TEXT`,
+    `ALTER TABLE direct_messages ADD COLUMN audio_file_name TEXT`,
   ];
   // ADD COLUMN migrations are idempotent by design — "duplicate column" is expected
   // on every boot after the first. Any other error is worth surfacing.

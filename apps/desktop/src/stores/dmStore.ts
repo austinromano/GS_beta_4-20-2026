@@ -10,6 +10,7 @@ export interface DmConversation {
   lastText: string;
   lastAt: string;
   lastFromMe: boolean;
+  lastHasAudio: boolean;
   unread: number;
 }
 
@@ -18,6 +19,8 @@ export interface DmMessage {
   fromUserId: string;
   toUserId: string;
   text: string;
+  audioFileId: string | null;
+  audioFileName: string | null;
   read: boolean;
   createdAt: string;
 }
@@ -32,7 +35,7 @@ interface DmState {
   bootstrap: (currentUserId: string | null) => () => void;
   loadConversations: () => Promise<void>;
   openConversation: (userId: string) => Promise<void>;
-  send: (userId: string, text: string) => Promise<void>;
+  send: (userId: string, data: { text?: string; audioFile?: File }) => Promise<void>;
   markRead: (userId: string) => Promise<void>;
   setActive: (userId: string | null) => void;
 }
@@ -52,12 +55,21 @@ export const useDmStore = create<DmState>((set, get) => ({
 
     const socket = getSocket();
     if (socket && !socketHandlerAttached) {
-      const handler = (msg: DmMessage) => {
+      const handler = (raw: { id: string; fromUserId: string; toUserId: string; text: string; audioFileId?: string | null; audioFileName?: string | null; read: boolean; createdAt: string }) => {
+        const msg: DmMessage = {
+          id: raw.id,
+          fromUserId: raw.fromUserId,
+          toUserId: raw.toUserId,
+          text: raw.text,
+          audioFileId: raw.audioFileId ?? null,
+          audioFileName: raw.audioFileName ?? null,
+          read: raw.read,
+          createdAt: raw.createdAt,
+        };
         const myId = currentUserId;
         const otherId = msg.fromUserId === myId ? msg.toUserId : msg.fromUserId;
 
         set((s) => {
-          // Append to open thread if we have one cached.
           const next = new Map(s.messagesByUser);
           const existing = next.get(otherId);
           if (existing) {
@@ -68,7 +80,6 @@ export const useDmStore = create<DmState>((set, get) => ({
           return { messagesByUser: next };
         });
 
-        // Refresh conversations list (cheap — one query) and unread badge.
         get().loadConversations();
         api.getDmUnreadTotal().then((r) => set({ unreadTotal: r.count })).catch(() => {});
       };
@@ -109,11 +120,23 @@ export const useDmStore = create<DmState>((set, get) => ({
     }
   },
 
-  send: async (userId, text) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+  send: async (userId, data) => {
+    const trimmed = (data.text || '').trim();
+    const hasAudio = !!data.audioFile;
+    if (!trimmed && !hasAudio) return;
     try {
-      const msg = await api.sendDm(userId, trimmed);
+      let audioFileId: string | undefined;
+      let audioFileName: string | undefined;
+      if (data.audioFile) {
+        const upload = await api.uploadDmAudio(data.audioFile);
+        audioFileId = upload.fileId;
+        audioFileName = upload.fileName;
+      }
+      const msg = await api.sendDm(userId, {
+        text: trimmed || undefined,
+        audioFileId,
+        audioFileName,
+      });
       set((s) => {
         const next = new Map(s.messagesByUser);
         const existing = next.get(userId) || [];
@@ -125,6 +148,7 @@ export const useDmStore = create<DmState>((set, get) => ({
       get().loadConversations();
     } catch (err) {
       devWarn('dmStore.send', err);
+      throw err;
     }
   },
 
