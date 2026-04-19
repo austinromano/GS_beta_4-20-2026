@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../../lib/api';
+import Avatar from './Avatar';
 
 export default function InviteModal({ open, onClose, projectId, onInvited }: { open: boolean; onClose: () => void; projectId: string; onInvited?: () => void }) {
   const [query, setQuery] = useState('');
@@ -67,8 +68,8 @@ export default function InviteModal({ open, onClose, projectId, onInvited }: { o
                 onClick={() => handleInvite(u.email)}
                 className="w-full px-3 py-2 flex items-center gap-2.5 hover:bg-ghost-surface-hover transition-colors text-left"
               >
-                <div className="w-7 h-7 rounded-full bg-ghost-green text-black flex items-center justify-center text-[11px] font-bold shrink-0">
-                  {u.displayName?.charAt(0)?.toUpperCase() || '?'}
+                <div className="shrink-0">
+                  <Avatar name={u.displayName || u.email} src={u.avatarUrl} size="sm" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-medium text-white truncate">{u.displayName}</p>
