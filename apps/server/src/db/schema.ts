@@ -142,6 +142,15 @@ export const chatMessages = sqliteTable('chat_messages', {
   createdAt: timestamp('created_at').notNull(),
 });
 
+export const directMessages = sqliteTable('direct_messages', {
+  id: uuid().primaryKey(),
+  fromUserId: text('from_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  toUserId: text('to_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  text: text('text').notNull(),
+  read: integer('read', { mode: 'boolean' }).notNull().default(false),
+  createdAt: timestamp('created_at').notNull(),
+});
+
 export const socialPosts = sqliteTable('social_posts', {
   id: uuid().primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

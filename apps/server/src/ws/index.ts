@@ -60,6 +60,9 @@ export function setupWebSocket(httpServer: HTTPServer) {
   io.on('connection', (socket) => {
     console.log(`[WS] ${socket.data.displayName} connected`);
 
+    // Personal room for DMs and any other user-targeted events.
+    socket.join(`user:${socket.data.userId}`);
+
     globalOnline.set(socket.data.userId, { userId: socket.data.userId, displayName: socket.data.displayName, currentProjectId: null, currentProjectName: null });
     broadcastOnlineUsers();
 
@@ -89,4 +92,9 @@ export function getIO() {
 /** Emit project-updated to all clients in a project room */
 export function emitProjectUpdated(projectId: string, reason: 'track-added' | 'track-updated' | 'track-deleted' | 'version-created' | 'metadata-updated' | 'member-changed') {
   ioInstance?.to(`project:${projectId}`).emit('project-updated', { projectId, reason });
+}
+
+/** Emit a direct message to a specific user's personal room (all their open tabs). */
+export function emitDm(userId: string, msg: { id: string; fromUserId: string; toUserId: string; text: string; read: boolean; createdAt: string }) {
+  ioInstance?.to(`user:${userId}`).emit('dm-received', msg);
 }

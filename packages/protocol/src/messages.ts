@@ -125,6 +125,14 @@ export interface ServerToClientEvents {
     projectId: string;
     reason: 'track-added' | 'track-updated' | 'track-deleted' | 'version-created' | 'metadata-updated' | 'member-changed';
   }) => void;
+  'dm-received': (data: {
+    id: string;
+    fromUserId: string;
+    toUserId: string;
+    text: string;
+    read: boolean;
+    createdAt: string;
+  }) => void;
   'cursor-move': (data: {
     userId: string;
     displayName: string;

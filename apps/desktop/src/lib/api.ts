@@ -175,4 +175,17 @@ export const api = {
     request<void>('DELETE', `/sample-packs/${packId}/items/${itemId}`),
 
   getStorageUsage: () => request<{ usedBytes: number; limitBytes: number }>('GET', '/storage'),
+
+  // Direct messages
+  listDmConversations: () =>
+    request<{ userId: string; displayName: string; avatarUrl: string | null; lastText: string; lastAt: string; lastFromMe: boolean; unread: number }[]>(
+      'GET', '/dm/conversations'),
+  getDmHistory: (userId: string) =>
+    request<{ id: string; fromUserId: string; toUserId: string; text: string; read: boolean; createdAt: string }[]>(
+      'GET', `/dm/${userId}`),
+  sendDm: (userId: string, text: string) =>
+    request<{ id: string; fromUserId: string; toUserId: string; text: string; read: boolean; createdAt: string }>(
+      'POST', `/dm/${userId}`, { text }),
+  markDmRead: (userId: string) => request<void>('POST', `/dm/${userId}/read`),
+  getDmUnreadTotal: () => request<{ count: number }>('GET', '/dm/unread-count/total'),
 };

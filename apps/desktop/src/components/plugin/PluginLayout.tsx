@@ -34,6 +34,7 @@ import ProjectHeaderBar from './ProjectHeaderBar';
 import CollaboratorsBar from './CollaboratorsBar';
 import WelcomeHero from '../onboarding/WelcomeHero';
 import FirstInviteNudge from '../onboarding/FirstInviteNudge';
+import MessagesView from '../messages/MessagesView';
 
 const INVITE_NUDGE_FLAG = 'ghost_shown_invite_nudge';
 
@@ -690,20 +691,7 @@ export default function PluginLayout() {
               ) : showSocial ? (
                 <SocialFeed user={user} friends={friends} />
               ) : showMessages ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-20 h-20 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-5">
-                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                      </svg>
-                    </div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Messages</h2>
-                    <p className="text-[15px] text-white/40">Coming Soon</p>
-                    <p className="text-[13px] text-white/25 mt-2 max-w-xs mx-auto">
-                      Direct chats with the producers you follow — separate from project sessions.
-                    </p>
-                  </div>
-                </div>
+                <MessagesView friends={friends} />
               ) : showMarketplace ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">

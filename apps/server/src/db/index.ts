@@ -175,6 +175,14 @@ export async function initDatabase() {
       created_at TEXT NOT NULL,
       PRIMARY KEY (follower_id, following_id)
     );
+    CREATE TABLE IF NOT EXISTS direct_messages (
+      id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // Migrations for existing databases
@@ -236,6 +244,8 @@ export async function initDatabase() {
     `CREATE INDEX IF NOT EXISTS idx_social_post_reactions_post ON social_post_reactions(post_id)`,
     `CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id)`,
     `CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_dm_pair ON direct_messages(from_user_id, to_user_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_dm_inbox ON direct_messages(to_user_id, read, created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_sample_packs_owner ON sample_packs(owner_id)`,
     `CREATE INDEX IF NOT EXISTS idx_sample_pack_items_pack ON sample_pack_items(pack_id)`,
     `CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)`,
