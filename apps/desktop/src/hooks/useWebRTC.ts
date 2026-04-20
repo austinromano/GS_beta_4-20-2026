@@ -3,6 +3,8 @@ import { getSocket } from '../lib/socket';
 import { sendWebRTCOffer, sendWebRTCAnswer, sendICECandidate, sendWebRTCLeave } from '../lib/socket';
 import { useWebrtcStore } from '../stores/webrtcStore';
 
+type StreamKind = 'camera' | 'screen';
+
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -10,31 +12,32 @@ const ICE_SERVERS: RTCConfiguration = {
   ],
 };
 
-interface SpeakingMonitor {
-  ctx: AudioContext;
-  raf: number;
-}
+interface SpeakingMonitor { ctx: AudioContext; raf: number }
+
+function key(userId: string, kind: StreamKind) { return `${kind}:${userId}`; }
 
 export function useWebRTC(projectId: string | null, userId: string | null) {
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
-  const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
+
+  const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());           // keyed by "camera:uid" | "screen:uid"
   const localStreamRef = useRef<MediaStream | null>(null);
-  const speakingMonitorsRef = useRef<Map<string, SpeakingMonitor>>(new Map());
+  const localScreenRef = useRef<MediaStream | null>(null);
+  const speakingMonitorsRef = useRef<Map<string, SpeakingMonitor>>(new Map());  // keyed by userId (camera audio only)
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
 
+  // ── Speaking monitor (camera audio only) ──────────────────────────────
+
   const attachSpeakingMonitor = useCallback((remoteUserId: string, stream: MediaStream) => {
-    // Tear down any previous monitor for this user.
     const prev = speakingMonitorsRef.current.get(remoteUserId);
     if (prev) {
       cancelAnimationFrame(prev.raf);
       try { prev.ctx.close(); } catch {}
       speakingMonitorsRef.current.delete(remoteUserId);
     }
-
     const audioTracks = stream.getAudioTracks();
     if (audioTracks.length === 0) return;
-
     try {
       const ctx = new AudioContext();
       const audioOnly = new MediaStream(audioTracks);
@@ -44,7 +47,6 @@ export function useWebRTC(projectId: string | null, userId: string | null) {
       analyser.smoothingTimeConstant = 0.5;
       source.connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
-
       let lastSpeaking = false;
       const tick = () => {
         analyser.getByteFrequencyData(data);
@@ -56,186 +58,170 @@ export function useWebRTC(projectId: string | null, userId: string | null) {
           useWebrtcStore.getState().setSpeaking(remoteUserId, speaking);
           lastSpeaking = speaking;
         }
-        const monitor = speakingMonitorsRef.current.get(remoteUserId);
-        if (monitor) monitor.raf = requestAnimationFrame(tick);
+        const m = speakingMonitorsRef.current.get(remoteUserId);
+        if (m) m.raf = requestAnimationFrame(tick);
       };
       const raf = requestAnimationFrame(tick);
       speakingMonitorsRef.current.set(remoteUserId, { ctx, raf });
     } catch (err) {
-      // Speaking detection is best-effort; never block playback.
       if (import.meta.env.DEV) console.warn('[useWebRTC] speaking monitor failed:', err);
     }
   }, []);
 
   const detachSpeakingMonitor = useCallback((remoteUserId: string) => {
-    const monitor = speakingMonitorsRef.current.get(remoteUserId);
-    if (monitor) {
-      cancelAnimationFrame(monitor.raf);
-      try { monitor.ctx.close(); } catch {}
+    const m = speakingMonitorsRef.current.get(remoteUserId);
+    if (m) {
+      cancelAnimationFrame(m.raf);
+      try { m.ctx.close(); } catch {}
       speakingMonitorsRef.current.delete(remoteUserId);
     }
     useWebrtcStore.getState().setSpeaking(remoteUserId, false);
   }, []);
 
-  // Clean up a single peer
-  const closePeer = useCallback((peerId: string) => {
-    const pc = peersRef.current.get(peerId);
-    if (pc) {
-      pc.close();
-      peersRef.current.delete(peerId);
+  // ── Peer lifecycle ────────────────────────────────────────────────────
+
+  const closePeer = useCallback((peerKey: string) => {
+    const pc = peersRef.current.get(peerKey);
+    if (pc) { pc.close(); peersRef.current.delete(peerKey); }
+    const [kind, uid] = peerKey.split(':') as [StreamKind, string];
+    if (kind === 'camera') {
+      detachSpeakingMonitor(uid);
+      setRemoteStreams((prev) => { const n = new Map(prev); n.delete(uid); return n; });
+    } else {
+      setRemoteScreenStreams((prev) => { const n = new Map(prev); n.delete(uid); return n; });
     }
-    detachSpeakingMonitor(peerId);
-    setRemoteStreams((prev) => {
-      const next = new Map(prev);
-      next.delete(peerId);
-      return next;
-    });
   }, [detachSpeakingMonitor]);
 
-  // Create a peer connection for a remote user
-  const createPeer = useCallback((remoteUserId: string, initiator: boolean) => {
-    if (peersRef.current.has(remoteUserId)) {
-      closePeer(remoteUserId);
-    }
+  const createPeer = useCallback((remoteUserId: string, kind: StreamKind) => {
+    const k = key(remoteUserId, kind);
+    if (peersRef.current.has(k)) closePeer(k);
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
-    peersRef.current.set(remoteUserId, pc);
+    peersRef.current.set(k, pc);
 
-    // Add local tracks to the connection
-    if (localStreamRef.current) {
-      for (const track of localStreamRef.current.getTracks()) {
-        pc.addTrack(track, localStreamRef.current);
-      }
+    const localForKind = kind === 'camera' ? localStreamRef.current : localScreenRef.current;
+    if (localForKind) {
+      for (const track of localForKind.getTracks()) pc.addTrack(track, localForKind);
     }
 
-    // Handle incoming remote tracks
     pc.ontrack = (e) => {
       const stream = e.streams[0];
-      setRemoteStreams((prev) => {
-        const next = new Map(prev);
-        next.set(remoteUserId, stream);
-        return next;
-      });
-      attachSpeakingMonitor(remoteUserId, stream);
+      if (kind === 'camera') {
+        setRemoteStreams((prev) => { const n = new Map(prev); n.set(remoteUserId, stream); return n; });
+        attachSpeakingMonitor(remoteUserId, stream);
+      } else {
+        setRemoteScreenStreams((prev) => { const n = new Map(prev); n.set(remoteUserId, stream); return n; });
+      }
     };
 
-    // Send ICE candidates
     pc.onicecandidate = (e) => {
       if (e.candidate && projectIdRef.current) {
-        sendICECandidate(projectIdRef.current, remoteUserId, e.candidate.toJSON());
+        sendICECandidate(projectIdRef.current, remoteUserId, e.candidate.toJSON(), kind);
       }
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        closePeer(remoteUserId);
-      }
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') closePeer(k);
     };
 
     return pc;
-  }, [closePeer]);
+  }, [closePeer, attachSpeakingMonitor]);
 
-  // Start sharing local stream
-  const startStream = useCallback(async (stream: MediaStream) => {
-    localStreamRef.current = stream;
-
-    // For each existing peer, add the new tracks
-    // But typically we create fresh connections when starting
-    // Signal all users in the room by creating offers
-    const socket = getSocket();
-    if (!socket || !projectIdRef.current) return;
-
-    // Get online users from presence to know who to call
-    // We'll initiate connections when we get user-joined or when we start streaming
-  }, []);
-
-  // Call a specific user (create offer)
-  const callUser = useCallback(async (remoteUserId: string) => {
-    const pc = createPeer(remoteUserId, true);
+  const callUser = useCallback(async (remoteUserId: string, kind: StreamKind = 'camera') => {
+    const pc = createPeer(remoteUserId, kind);
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    if (projectIdRef.current) {
-      sendWebRTCOffer(projectIdRef.current, remoteUserId, offer);
-    }
+    if (projectIdRef.current) sendWebRTCOffer(projectIdRef.current, remoteUserId, offer, kind);
   }, [createPeer]);
 
-  // Set local stream and call all existing room members
+  // ── Publish / replace / stop — CAMERA ─────────────────────────────────
+
   const publishStream = useCallback(async (stream: MediaStream, onlineUserIds: string[]) => {
     localStreamRef.current = stream;
-
-    // Call every other user in the room
     for (const uid of onlineUserIds) {
-      if (uid !== userId) {
-        await callUser(uid);
-      }
+      if (uid !== userId) await callUser(uid, 'camera');
     }
   }, [callUser, userId]);
 
-  // Replace tracks on existing connections (e.g., camera toggle)
   const replaceStream = useCallback((stream: MediaStream) => {
     localStreamRef.current = stream;
-    for (const [, pc] of peersRef.current) {
+    for (const [k, pc] of peersRef.current) {
+      if (!k.startsWith('camera:')) continue;
       const senders = pc.getSenders();
       for (const track of stream.getTracks()) {
         const sender = senders.find((s) => s.track?.kind === track.kind);
-        if (sender) {
-          sender.replaceTrack(track);
-        } else {
-          pc.addTrack(track, stream);
-        }
+        if (sender) sender.replaceTrack(track);
+        else pc.addTrack(track, stream);
       }
     }
   }, []);
 
-  // Stop sharing
   const stopStream = useCallback(() => {
-    if (projectIdRef.current) {
-      sendWebRTCLeave(projectIdRef.current);
-    }
-    for (const [peerId] of peersRef.current) {
-      closePeer(peerId);
+    if (projectIdRef.current) sendWebRTCLeave(projectIdRef.current, 'camera');
+    for (const k of Array.from(peersRef.current.keys())) {
+      if (k.startsWith('camera:')) closePeer(k);
     }
     localStreamRef.current = null;
-    setRemoteStreams(new Map());
   }, [closePeer]);
 
-  // Listen for signaling events
+  // ── Publish / stop — SCREEN ───────────────────────────────────────────
+
+  const publishScreen = useCallback(async (stream: MediaStream, onlineUserIds: string[]) => {
+    localScreenRef.current = stream;
+    for (const uid of onlineUserIds) {
+      if (uid !== userId) await callUser(uid, 'screen');
+    }
+  }, [callUser, userId]);
+
+  const stopScreen = useCallback(() => {
+    if (projectIdRef.current) sendWebRTCLeave(projectIdRef.current, 'screen');
+    for (const k of Array.from(peersRef.current.keys())) {
+      if (k.startsWith('screen:')) closePeer(k);
+    }
+    if (localScreenRef.current) {
+      localScreenRef.current.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+    }
+    localScreenRef.current = null;
+  }, [closePeer]);
+
+  // ── Signalling ────────────────────────────────────────────────────────
+
   useEffect(() => {
     const socket = getSocket();
     if (!socket || !projectId) return;
 
-    const handleOffer = async ({ fromUserId, offer }: { fromUserId: string; offer: RTCSessionDescriptionInit }) => {
-      const pc = createPeer(fromUserId, false);
-
-      // Add local tracks before answering
-      if (localStreamRef.current) {
-        for (const track of localStreamRef.current.getTracks()) {
-          pc.addTrack(track, localStreamRef.current);
-        }
+    const handleOffer = async ({ fromUserId, offer, streamType }: { fromUserId: string; offer: RTCSessionDescriptionInit; streamType?: StreamKind }) => {
+      const kind: StreamKind = streamType === 'screen' ? 'screen' : 'camera';
+      const pc = createPeer(fromUserId, kind);
+      const localForKind = kind === 'camera' ? localStreamRef.current : null;
+      if (localForKind) {
+        for (const track of localForKind.getTracks()) pc.addTrack(track, localForKind);
       }
-
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      sendWebRTCAnswer(projectId, fromUserId, answer);
+      sendWebRTCAnswer(projectId, fromUserId, answer, kind);
     };
 
-    const handleAnswer = async ({ fromUserId, answer }: { fromUserId: string; answer: RTCSessionDescriptionInit }) => {
-      const pc = peersRef.current.get(fromUserId);
-      if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    const handleAnswer = async ({ fromUserId, answer, streamType }: { fromUserId: string; answer: RTCSessionDescriptionInit; streamType?: StreamKind }) => {
+      const kind: StreamKind = streamType === 'screen' ? 'screen' : 'camera';
+      const pc = peersRef.current.get(key(fromUserId, kind));
+      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    };
+
+    const handleIceCandidate = async ({ fromUserId, candidate, streamType }: { fromUserId: string; candidate: RTCIceCandidateInit; streamType?: StreamKind }) => {
+      const kind: StreamKind = streamType === 'screen' ? 'screen' : 'camera';
+      const pc = peersRef.current.get(key(fromUserId, kind));
+      if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    };
+
+    const handleUserLeft = ({ userId: leftUserId, streamType }: { userId: string; streamType?: StreamKind }) => {
+      if (streamType) {
+        closePeer(key(leftUserId, streamType));
+      } else {
+        closePeer(key(leftUserId, 'camera'));
+        closePeer(key(leftUserId, 'screen'));
       }
-    };
-
-    const handleIceCandidate = async ({ fromUserId, candidate }: { fromUserId: string; candidate: RTCIceCandidateInit }) => {
-      const pc = peersRef.current.get(fromUserId);
-      if (pc) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      }
-    };
-
-    const handleUserLeft = ({ userId: leftUserId }: { userId: string }) => {
-      closePeer(leftUserId);
     };
 
     socket.on('webrtc-offer', handleOffer);
@@ -251,20 +237,20 @@ export function useWebRTC(projectId: string | null, userId: string | null) {
     };
   }, [projectId, createPeer, closePeer]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      for (const [peerId] of peersRef.current) {
-        closePeer(peerId);
-      }
+      for (const k of Array.from(peersRef.current.keys())) closePeer(k);
     };
   }, [closePeer]);
 
   return {
     remoteStreams,
+    remoteScreenStreams,
     publishStream,
     replaceStream,
     stopStream,
+    publishScreen,
+    stopScreen,
     callUser,
   };
 }

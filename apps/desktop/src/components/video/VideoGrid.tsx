@@ -6,14 +6,19 @@ import { useSessionStore } from '../../stores/sessionStore';
 
 interface WebRtcHandles {
   remoteStreams: Map<string, MediaStream>;
+  remoteScreenStreams: Map<string, MediaStream>;
   publishStream: (stream: MediaStream, userIds: string[]) => Promise<void>;
   replaceStream: (stream: MediaStream) => void;
   stopStream: () => void;
+  publishScreen: (stream: MediaStream, userIds: string[]) => Promise<void>;
+  stopScreen: () => void;
 }
 
 export default function VideoGrid({ members, userId, onAddFriend, variant = 'grid', webrtc }: { members: any[]; userId?: string; onAddFriend?: () => void; variant?: 'grid' | 'row'; webrtc: WebRtcHandles }) {
   const [cameraOn, setCameraOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
+  const [screenOn, setScreenOn] = useState(false);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showMicMenu, setShowMicMenu] = useState(false);
   const [showCamMenu, setShowCamMenu] = useState(false);
@@ -33,8 +38,50 @@ export default function VideoGrid({ members, userId, onAddFriend, variant = 'gri
   const [menuPos, setMenuPos] = useState<{ top: number } | null>(null);
 
   const onlineUsers = useSessionStore((s) => s.onlineUsers);
-  const { remoteStreams, publishStream, replaceStream, stopStream } = webrtc;
+  const { remoteStreams, remoteScreenStreams, publishStream, replaceStream, stopStream, publishScreen, stopScreen } = webrtc;
   const hasRemoteStreams = remoteStreams.size > 0;
+
+  // Takeover mode: somebody (local OR remote) is actively sharing a screen.
+  const anyScreenActive = screenOn || remoteScreenStreams.size > 0;
+  const primaryScreenStream: { stream: MediaStream; sharerName: string; isLocal: boolean } | null = (() => {
+    if (screenOn && screenStreamRef.current) {
+      return { stream: screenStreamRef.current, sharerName: 'You', isLocal: true };
+    }
+    const first = Array.from(remoteScreenStreams.entries())[0];
+    if (first) {
+      const [sharerId, stream] = first;
+      const m = members.find((mm) => mm.userId === sharerId);
+      return { stream, sharerName: m?.displayName || 'A collaborator', isLocal: false };
+    }
+    return null;
+  })();
+
+  const handleToggleScreen = async () => {
+    if (screenOn) {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+      }
+      screenStreamRef.current = null;
+      setScreenOn(false);
+      stopScreen();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      screenStreamRef.current = stream;
+      setScreenOn(true);
+      // Auto-stop when the user clicks the browser's native "Stop sharing" button.
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        screenStreamRef.current = null;
+        setScreenOn(false);
+        stopScreen();
+      });
+      const others = onlineUsers.filter((u) => u.userId !== userId).map((u) => u.userId);
+      if (others.length > 0) await publishScreen(stream, others);
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[VideoGrid] screen share cancelled:', err);
+    }
+  };
 
   // Fetch audio + video input devices
   const fetchDevices = async () => {
@@ -326,7 +373,10 @@ export default function VideoGrid({ members, userId, onAddFriend, variant = 'gri
         </div>,
         document.body
       )}
-    <div className={variant === 'row' ? 'flex gap-1.5 overflow-x-auto' : 'grid grid-cols-2 gap-1.5'}>
+    {anyScreenActive && primaryScreenStream && (
+      <ScreenShareView stream={primaryScreenStream.stream} sharerName={primaryScreenStream.sharerName} isLocal={primaryScreenStream.isLocal} onStop={handleToggleScreen} />
+    )}
+    <div className={variant === 'row' || anyScreenActive ? 'flex gap-1.5 overflow-x-auto' : 'grid grid-cols-2 gap-1.5'}>
       {Array.from({ length: 4 }).map((_, i) => {
         const myIndex = members.findIndex(m => m.userId === userId);
         const me = myIndex >= 0 ? members[myIndex] : null;
@@ -343,7 +393,7 @@ export default function VideoGrid({ members, userId, onAddFriend, variant = 'gri
         const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().length > 0;
 
         return (
-          <div key={i} className={variant === 'row' ? 'relative w-[120px] h-[120px] shrink-0' : 'relative aspect-square'}>
+          <div key={i} className={anyScreenActive ? 'relative w-[72px] h-[72px] shrink-0' : (variant === 'row' ? 'relative w-[120px] h-[120px] shrink-0' : 'relative aspect-square')}>
           <div className="relative w-full h-full rounded-xl overflow-hidden group/video" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 8px rgba(0,0,0,0.15)' }}>
             {/* Local video (your camera) */}
             {isMe && cameraOn && (
@@ -425,9 +475,12 @@ export default function VideoGrid({ members, userId, onAddFriend, variant = 'gri
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" /><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.35 2.17" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
                     )}
                   </motion.button>
-                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                    className="w-8 h-8 rounded-full flex items-center justify-center transition-colors bg-white/10 text-white/50 hover:bg-white/20"
-                    title="Screen share"
+                  <motion.button
+                    onClick={handleToggleScreen}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${screenOn ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/50 hover:bg-white/20'}`}
+                    title={screenOn ? 'Stop sharing screen' : 'Share screen'}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
@@ -458,5 +511,36 @@ function RemoteVideo({ stream }: { stream: MediaStream }) {
 
   return (
     <video ref={ref} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+  );
+}
+
+// Big primary view when someone is sharing their screen. Cameras shrink below.
+function ScreenShareView({ stream, sharerName, isLocal, onStop }: { stream: MediaStream; sharerName: string; isLocal: boolean; onStop: () => void }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = stream;
+  }, [stream]);
+
+  return (
+    <div className="relative rounded-xl overflow-hidden bg-black aspect-video w-full mb-1.5" style={{ border: '1px solid rgba(59,130,246,0.35)', boxShadow: '0 0 0 1px rgba(59,130,246,0.15), 0 4px 16px rgba(0,0,0,0.35)' }}>
+      <video ref={ref} autoPlay playsInline muted className="w-full h-full object-contain" />
+      <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold text-white" style={{ background: 'rgba(59,130,246,0.85)', backdropFilter: 'blur(4px)' }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+        {sharerName}{isLocal ? " · You're sharing" : ' · sharing screen'}
+      </div>
+      {isLocal && (
+        <button
+          onClick={onStop}
+          className="absolute top-2 right-2 px-2.5 py-1 rounded-md text-[10px] font-bold text-white hover:bg-red-500 transition-colors"
+          style={{ background: 'rgba(239,68,68,0.85)', backdropFilter: 'blur(4px)' }}
+        >
+          Stop sharing
+        </button>
+      )}
+    </div>
   );
 }

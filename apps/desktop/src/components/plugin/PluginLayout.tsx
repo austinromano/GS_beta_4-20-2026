@@ -103,12 +103,12 @@ export default function PluginLayout() {
   // WebRTC is owned here so it keeps running even when the floating video
   // panel is hidden — otherwise we'd miss inbound offers while collapsed.
   const webrtc = useWebRTC(currentProjectId, user?.id ?? null);
-  const remoteStreamCount = webrtc.remoteStreams.size;
+  const remoteActivityCount = webrtc.remoteStreams.size + webrtc.remoteScreenStreams.size;
 
-  // Auto-open the floating panel the first time a remote stream arrives.
+  // Auto-open the floating panel when a remote camera OR screen stream arrives.
   useEffect(() => {
-    if (remoteStreamCount > 0 && videoGridHidden) setVideoGridHidden(false);
-  }, [remoteStreamCount]);
+    if (remoteActivityCount > 0 && videoGridHidden) setVideoGridHidden(false);
+  }, [remoteActivityCount]);
 
   const audioCleanup = useAudioStore((s) => s.cleanup);
   const members = currentProject?.members || [];

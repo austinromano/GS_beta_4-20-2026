@@ -4,9 +4,12 @@ import VideoGrid from './VideoGrid';
 
 interface WebRtcHandles {
   remoteStreams: Map<string, MediaStream>;
+  remoteScreenStreams: Map<string, MediaStream>;
   publishStream: (stream: MediaStream, userIds: string[]) => Promise<void>;
   replaceStream: (stream: MediaStream) => void;
   stopStream: () => void;
+  publishScreen: (stream: MediaStream, userIds: string[]) => Promise<void>;
+  stopScreen: () => void;
 }
 
 interface Props {
