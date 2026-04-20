@@ -261,21 +261,46 @@ export default memo(function Waveform({
       {!audioData && fileId && !loadFailed && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <motion.svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
+            width="26"
+            height="28"
+            viewBox="0 0 20 22"
             fill="none"
-            stroke="#ffffff"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ filter: 'drop-shadow(0 0 6px rgba(139,92,246,0.35))' }}
-            animate={{ y: [0, -3, 0], rotate: [-2, 2, -2], opacity: [0.4, 0.7, 0.4] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            animate={{ y: [0, -3, 0] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
           >
-            <path d="M9 10h.01" />
-            <path d="M15 10h.01" />
-            <path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z" />
+            <defs>
+              <linearGradient id="ghostLoaderBase" x1="0" y1="0" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#00FFC8" />
+                <stop offset="100%" stopColor="#7C3AED" />
+              </linearGradient>
+            </defs>
+            {/* Base ghost — same glyph as the top-left navigation ghost. */}
+            <path
+              d="M10 1C5.5 1 2 4.5 2 9v8l2-2 2 2 2-2 2 2 2-2 2 2 2-2 2 2V9c0-4.5-3.5-8-8-8z"
+              fill="rgba(0,255,200,0.08)"
+              stroke="url(#ghostLoaderBase)"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+              opacity="0.5"
+            />
+            <ellipse cx="7.5" cy="9.5" rx="1.6" ry="1.8" fill="url(#ghostLoaderBase)" opacity="0.9" />
+            <ellipse cx="12.5" cy="9.5" rx="1.6" ry="1.8" fill="url(#ghostLoaderBase)" opacity="0.9" />
+            <ellipse cx="7.5" cy="9.2" rx="0.6" ry="0.7" fill="#0A0412" />
+            <ellipse cx="12.5" cy="9.2" rx="0.6" ry="0.7" fill="#0A0412" />
+            {/* Purple arc chasing around the outline — the "loading" signal. */}
+            <motion.path
+              d="M10 1C5.5 1 2 4.5 2 9v8l2-2 2 2 2-2 2 2 2-2 2 2 2-2 2 2V9c0-4.5-3.5-8-8-8z"
+              fill="none"
+              stroke="#A855F7"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              pathLength={100}
+              strokeDasharray="18 82"
+              style={{ filter: 'drop-shadow(0 0 3px rgba(168,85,247,0.9))' }}
+              animate={{ strokeDashoffset: [0, -100] }}
+              transition={{ duration: 1.3, repeat: Infinity, ease: 'linear' }}
+            />
           </motion.svg>
         </div>
       )}
