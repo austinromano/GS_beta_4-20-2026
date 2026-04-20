@@ -562,51 +562,51 @@ export default function PluginLayout() {
                           />
 
                           <ArrangementDropZone projectId={selectedProjectId!} onFilesAdded={() => fetchProject(selectedProjectId!)}>
+                            <FullMixDropZone
+                              projectId={selectedProjectId!}
+                              onFilesAdded={() => fetchProject(selectedProjectId!)}
+                              isBeat={isBeatView}
+                              compact={trackZoom === 'half'}
+                              rightSlot={(
+                                <motion.button
+                                  onClick={handleDownloadStems}
+                                  className="w-[120px] h-11 rounded-full text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_0_20px_rgba(124,58,237,0.4),0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] shrink-0"
+                                  style={{ background: 'linear-gradient(180deg, #7C3AED 0%, #581C87 100%)' }}
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                  </svg>
+                                  Download
+                                </motion.button>
+                              )}
+                            />
+                            <div className="flex items-center gap-1 py-1 justify-end">
+                              <button
+                                onClick={() => setTrackZoom('half')}
+                                className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${trackZoom === 'half' ? 'text-ghost-green' : 'text-white/30 hover:text-white/60'}`}
+                                title="Compact"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                  <line x1="8" y1="11" x2="14" y2="11" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => setTrackZoom('full')}
+                                className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${trackZoom === 'full' ? 'text-ghost-green' : 'text-white/30 hover:text-white/60'}`}
+                                title="Full Height"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                  <line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+                                </svg>
+                              </button>
+                            </div>
                             <ArrangementScrollView showAll={showAllBars}>
-                              <FullMixDropZone
-                                projectId={selectedProjectId!}
-                                onFilesAdded={() => fetchProject(selectedProjectId!)}
-                                isBeat={isBeatView}
-                                compact={trackZoom === 'half'}
-                                rightSlot={(
-                                  <motion.button
-                                    onClick={handleDownloadStems}
-                                    className="w-[120px] h-11 rounded-full text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_0_20px_rgba(124,58,237,0.4),0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] shrink-0"
-                                    style={{ background: 'linear-gradient(180deg, #7C3AED 0%, #581C87 100%)' }}
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                  >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                      <polyline points="7 10 12 15 17 10" />
-                                      <line x1="12" y1="15" x2="12" y2="3" />
-                                    </svg>
-                                    Download
-                                  </motion.button>
-                                )}
-                              />
-                              <div className="flex items-center gap-1 py-1 justify-end">
-                                <button
-                                  onClick={() => setTrackZoom('half')}
-                                  className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${trackZoom === 'half' ? 'text-ghost-green' : 'text-white/30 hover:text-white/60'}`}
-                                  title="Compact"
-                                >
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                                    <line x1="8" y1="11" x2="14" y2="11" />
-                                  </svg>
-                                </button>
-                                <button
-                                  onClick={() => setTrackZoom('full')}
-                                  className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${trackZoom === 'full' ? 'text-ghost-green' : 'text-white/30 hover:text-white/60'}`}
-                                  title="Full Height"
-                                >
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                                    <line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
-                                  </svg>
-                                </button>
-                              </div>
                               <BarRuler />
                               <DraggableTrackList
                                 tracks={currentProject.tracks}

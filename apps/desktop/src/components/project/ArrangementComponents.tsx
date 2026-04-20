@@ -40,8 +40,48 @@ export function ArrangementDropZone({ projectId, onFilesAdded, children }: { pro
   );
 }
 
+const BARS_PER_VIEW = 8;
+
 export function ArrangementScrollView({ children }: { children: React.ReactNode; showAll?: boolean }) {
-  return <div className="relative overflow-x-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(124,58,237,0.3) transparent' }}>{children}</div>;
+  const { numBars, arrangementDur } = useArrangement();
+  const currentTime = useAudioStore((s) => s.currentTime);
+  const isPlaying = useAudioStore((s) => s.isPlaying);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Inner wrapper is wider than the viewport so only BARS_PER_VIEW bars show
+  // at a time. When numBars ≤ BARS_PER_VIEW, the arrangement fits without
+  // scrolling and inner width stays at 100%.
+  const innerWidthPct = Math.max(100, (numBars / BARS_PER_VIEW) * 100);
+
+  // Auto-follow: once the playhead leaves the visible range, page forward (or
+  // back, if the user seeked) so the playhead stays on screen.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !isPlaying || arrangementDur <= 0) return;
+    const inner = el.firstElementChild as HTMLElement | null;
+    if (!inner) return;
+    const playheadX = (currentTime / arrangementDur) * inner.clientWidth;
+    const viewStart = el.scrollLeft;
+    const viewEnd = viewStart + el.clientWidth;
+    if (playheadX > viewEnd) {
+      const maxScroll = Math.max(0, inner.clientWidth - el.clientWidth);
+      el.scrollTo({ left: Math.min(maxScroll, viewStart + el.clientWidth), behavior: 'smooth' });
+    } else if (playheadX < viewStart) {
+      el.scrollTo({ left: Math.max(0, playheadX - 20), behavior: 'smooth' });
+    }
+  }, [currentTime, isPlaying, arrangementDur]);
+
+  return (
+    <div
+      ref={scrollRef}
+      className="relative overflow-x-auto"
+      style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(124,58,237,0.3) transparent' }}
+    >
+      <div className="relative" style={{ width: `${innerWidthPct}%` }}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 // Shared time axis for the arrangement: at least 16 bars wide, stretches to
