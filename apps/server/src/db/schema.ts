@@ -199,3 +199,16 @@ export const notifications = sqliteTable('notifications', {
   read: integer('read', { mode: 'boolean' }).default(false),
   createdAt: timestamp('created_at').notNull(),
 });
+
+// Scheduled co-working sessions ("book a session with a friend").
+// scheduledAt is stored as an ISO-8601 UTC string; clients render in local TZ.
+export const bookings = sqliteTable('bookings', {
+  id: uuid().primaryKey(),
+  creatorId: text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  inviteeId: text('invitee_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull().default(''),
+  scheduledAt: text('scheduled_at').notNull(),
+  durationMin: integer('duration_min').notNull().default(60),
+  status: text('status', { enum: ['pending', 'accepted', 'declined', 'canceled'] }).notNull().default('pending'),
+  createdAt: timestamp('created_at').notNull(),
+});

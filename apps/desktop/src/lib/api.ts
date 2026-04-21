@@ -198,4 +198,25 @@ export const api = {
   },
   markDmRead: (userId: string) => request<void>('POST', `/dm/${userId}/read`),
   getDmUnreadTotal: () => request<{ count: number }>('GET', '/dm/unread-count/total'),
+
+  // Bookings — scheduled co-working sessions with friends
+  listBookings: () => request<Booking[]>('GET', '/bookings'),
+  createBooking: (data: { inviteeId: string; title?: string; scheduledAt: string; durationMin: number }) =>
+    request<Booking>('POST', '/bookings', data),
+  updateBooking: (id: string, data: { status?: 'accepted' | 'declined' | 'canceled'; scheduledAt?: string; durationMin?: number; title?: string }) =>
+    request<Booking>('PATCH', `/bookings/${id}`, data),
+  deleteBooking: (id: string) => request<void>('DELETE', `/bookings/${id}`),
 };
+
+export interface Booking {
+  id: string;
+  creatorId: string;
+  inviteeId: string;
+  title: string;
+  scheduledAt: string;
+  durationMin: number;
+  status: 'pending' | 'accepted' | 'declined' | 'canceled';
+  createdAt: string;
+  creator: { id: string; displayName: string; avatarUrl: string | null } | null;
+  invitee: { id: string; displayName: string; avatarUrl: string | null } | null;
+}

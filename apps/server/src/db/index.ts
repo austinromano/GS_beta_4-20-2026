@@ -185,6 +185,16 @@ export async function initDatabase() {
       read INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS bookings (
+      id TEXT PRIMARY KEY,
+      creator_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      invitee_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL DEFAULT '',
+      scheduled_at TEXT NOT NULL,
+      duration_min INTEGER NOT NULL DEFAULT 60,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL
+    );
   `);
 
   // Migrations for existing databases
@@ -253,6 +263,8 @@ export async function initDatabase() {
     `CREATE INDEX IF NOT EXISTS idx_sample_packs_owner ON sample_packs(owner_id)`,
     `CREATE INDEX IF NOT EXISTS idx_sample_pack_items_pack ON sample_pack_items(pack_id)`,
     `CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_bookings_creator ON bookings(creator_id, scheduled_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_bookings_invitee ON bookings(invitee_id, scheduled_at)`,
   ];
   for (const idx of indexes) {
     try { await client.execute(idx); } catch (err) { console.warn('[db.index]', idx, '→', err); }

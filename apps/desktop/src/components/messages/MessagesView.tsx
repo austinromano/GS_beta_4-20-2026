@@ -4,6 +4,7 @@ import { useDmStore } from '../../stores/dmStore';
 import { useAuthStore } from '../../stores/authStore';
 import DmAudioBubble from './DmAudioBubble';
 import MessagesCalendar from './MessagesCalendar';
+import ScheduleSessionModal from './ScheduleSessionModal';
 
 interface Friend {
   id: string;
@@ -54,6 +55,7 @@ export default function MessagesView({ friends }: Props) {
   const [sending, setSending] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState('');
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -204,10 +206,24 @@ export default function MessagesView({ friends }: Props) {
           <>
             <div className="px-5 py-3 border-b border-white/[0.06] flex items-center gap-3 shrink-0">
               <Avatar name={activeFriend.displayName} src={activeFriend.avatarUrl} size="sm" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="text-[14px] font-bold text-white truncate">{activeFriend.displayName}</div>
                 <div className="text-[11px] text-white/40">Direct message</div>
               </div>
+              <button
+                onClick={() => setScheduleOpen(true)}
+                title="Book a session"
+                className="shrink-0 h-8 px-3 rounded-full text-[12px] font-semibold text-white flex items-center gap-1.5 transition-all hover:brightness-110 active:scale-[0.97]"
+                style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #4C1D95 100%)' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                Schedule
+              </button>
             </div>
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
@@ -358,6 +374,13 @@ export default function MessagesView({ friends }: Props) {
           <MessagesCalendar />
         </div>
       </div>
+
+      {scheduleOpen && activeFriend && (
+        <ScheduleSessionModal
+          friend={{ id: activeFriend.id, displayName: activeFriend.displayName }}
+          onClose={() => setScheduleOpen(false)}
+        />
+      )}
     </div>
   );
 }
