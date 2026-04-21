@@ -132,7 +132,9 @@ bookingsRoutes.patch('/:id', async (c) => {
       tempo: 0,
       key: '',
       genre: '',
-      projectType: 'project',
+      // Use 'beat' so the project renders in the sidebar's Projects section
+      // (which filters on projectType === 'beat').
+      projectType: 'beat',
       timeSignature: '',
       createdAt: now,
       updatedAt: now,
