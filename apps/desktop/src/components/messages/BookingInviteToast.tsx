@@ -86,7 +86,7 @@ export default function BookingInviteToast() {
           >
             {/* Header strip with avatar + inviter name */}
             <div className="flex items-center gap-3 px-4 pt-3.5 pb-2.5">
-              <Avatar name={invite.creator?.displayName || 'Friend'} src={invite.creator?.avatarUrl || null} size="sm" />
+              <Avatar name={invite.creator?.displayName || 'Friend'} src={invite.creator?.avatarUrl || null} size="sm" userId={invite.creator?.id || null} />
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] uppercase tracking-wider text-ghost-green font-bold">Session invite</p>
                 <p className="text-[13px] font-bold text-white truncate leading-tight">

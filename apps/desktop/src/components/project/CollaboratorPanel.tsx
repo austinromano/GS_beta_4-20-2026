@@ -23,7 +23,7 @@ export default function CollaboratorPanel({ members, onInvite, isOwner, onRemove
         {[...members].sort((a, b) => (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : 0)).map((m) => (
           <div key={m.userId} className="group flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-ghost-surface-hover/50 cursor-pointer">
             <div className="relative">
-              <Avatar name={m.displayName} src={m.avatarUrl} size="sm" colour={m.role === 'owner' ? '#F0B232' : '#23A559'} />
+              <Avatar name={m.displayName} src={m.avatarUrl} size="sm" colour={m.role === 'owner' ? '#F0B232' : '#23A559'} userId={m.userId} />
               <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-ghost-sidebar" style={{ background: '#23A559' }} />
             </div>
             <span className="text-[14px] text-ghost-text-muted flex-1 truncate hover:text-ghost-text-secondary">{m.displayName}</span>

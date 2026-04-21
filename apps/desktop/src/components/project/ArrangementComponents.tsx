@@ -251,7 +251,7 @@ function LaneClip({ track, selectedProjectId, deleteTrack, trackZoom, laneWidth,
               boxShadow: '0 2px 6px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08) inset',
             }}
           >
-            <Avatar name={ownerName} src={owner?.avatarUrl || null} size="sm" />
+            <Avatar name={ownerName} src={owner?.avatarUrl || null} size="sm" userId={track.ownerId || null} />
           </div>
         </div>
       )}

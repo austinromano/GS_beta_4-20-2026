@@ -40,7 +40,7 @@ export default function FriendsPanel({ friends }: { friends: { id: string; displ
               {onlineFriends.map((f) => (
                 <div key={f.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-ghost-surface-hover cursor-pointer group transition-colors">
                   <div className="relative">
-                    <Avatar name={f.displayName} src={f.avatarUrl} size="sm" />
+                    <Avatar name={f.displayName} src={f.avatarUrl} size="sm" userId={f.id} />
                     <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#23A559] border-[2.5px] border-ghost-surface" />
                   </div>
                   <span className="text-[13px] font-medium text-ghost-text-secondary group-hover:text-white flex-1 truncate transition-colors">{f.displayName}</span>
@@ -49,7 +49,7 @@ export default function FriendsPanel({ friends }: { friends: { id: string; displ
               {offlineFriends.map((f) => (
                 <div key={f.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-ghost-surface-hover cursor-pointer group transition-colors">
                   <div className="relative">
-                    <Avatar name={f.displayName} src={f.avatarUrl} size="sm" />
+                    <Avatar name={f.displayName} src={f.avatarUrl} size="sm" userId={f.id} />
                     <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-ghost-text-muted/40 border-2 border-ghost-surface" />
                   </div>
                   <span className="text-[13px] font-medium text-ghost-text-muted/50 group-hover:text-ghost-text-primary flex-1 truncate transition-colors">{f.displayName}</span>

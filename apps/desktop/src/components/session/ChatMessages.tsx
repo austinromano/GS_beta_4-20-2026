@@ -48,7 +48,7 @@ export default function ChatMessages({ messages, onlineUsers, currentUserId, onD
           <div key={origIndex} className={`group relative flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'} ${sameAsPrev ? 'mt-0.5' : 'mt-3'}`}>
             {!isOwn && (
               <div className={`shrink-0 w-8 ${sameAsPrev ? 'invisible' : ''}`}>
-                <Avatar name={msg.displayName} src={avatarUrl} size="sm" />
+                <Avatar name={msg.displayName} src={avatarUrl} size="sm" userId={msg.userId} />
               </div>
             )}
             <div className={`flex flex-col max-w-[75%] ${isOwn ? 'items-end' : 'items-start'}`}>

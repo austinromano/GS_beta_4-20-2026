@@ -184,7 +184,7 @@ export default function MessagesView({ friends }: Props) {
                 }`}
               >
                 <div className="shrink-0 relative">
-                  <Avatar name={c.displayName} src={c.avatarUrl} size="sm" />
+                  <Avatar name={c.displayName} src={c.avatarUrl} size="sm" userId={c.userId} />
                   {c.unread > 0 && (
                     <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
                       {c.unread > 9 ? '9+' : c.unread}
@@ -218,7 +218,7 @@ export default function MessagesView({ friends }: Props) {
         {activeFriend ? (
           <>
             <div className="px-5 py-3 border-b border-white/[0.06] flex items-center gap-3 shrink-0">
-              <Avatar name={activeFriend.displayName} src={activeFriend.avatarUrl} size="sm" />
+              <Avatar name={activeFriend.displayName} src={activeFriend.avatarUrl} size="sm" userId={activeFriend.id} />
               <div className="min-w-0 flex-1">
                 <div className="text-[14px] font-bold text-white truncate">{activeFriend.displayName}</div>
                 <div className="text-[11px] text-white/40">Direct message</div>
@@ -256,7 +256,7 @@ export default function MessagesView({ friends }: Props) {
                   <div key={msg.id} className={`flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'} ${sameAsPrev ? 'mt-0.5' : 'mt-3'}`}>
                     {!isOwn && (
                       <div className={`shrink-0 w-8 ${sameAsPrev ? 'invisible' : ''}`}>
-                        <Avatar name={activeFriend.displayName} src={activeFriend.avatarUrl} size="sm" />
+                        <Avatar name={activeFriend.displayName} src={activeFriend.avatarUrl} size="sm" userId={activeFriend.id} />
                       </div>
                     )}
                     <div className={`flex flex-col max-w-[70%] gap-1 ${isOwn ? 'items-end' : 'items-start'}`}>

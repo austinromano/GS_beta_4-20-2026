@@ -89,7 +89,7 @@ export default function AddFriendPopover({ friends, onFriendsUpdated }: Props) {
                     onClick={() => handleAdd(u.id)}
                     className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-[13px] text-white/80 hover:bg-white/[0.06] transition-colors"
                   >
-                    <Avatar name={u.displayName || u.email || '?'} src={u.avatarUrl} size="sm" />
+                    <Avatar name={u.displayName || u.email || '?'} src={u.avatarUrl} size="sm" userId={u.id} />
                     <span className="truncate">{u.displayName || u.email}</span>
                   </button>
                 ))}

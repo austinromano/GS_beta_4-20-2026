@@ -416,7 +416,7 @@ export default function VideoGrid({ members, userId, onAddFriend, variant = 'gri
             {!isMe && !hasRemoteVideo && (
               <div className="absolute inset-0 flex items-center justify-center">
                 {member ? (
-                  <Avatar name={member.displayName || '?'} src={member.avatarUrl} size="xl" />
+                  <Avatar name={member.displayName || '?'} src={member.avatarUrl} size="xl" userId={member.userId} />
                 ) : (
                   <motion.button
                     onClick={() => { if (onAddFriend) onAddFriend(); }}

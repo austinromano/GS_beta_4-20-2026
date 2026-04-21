@@ -42,7 +42,7 @@ export default function CollaboratorsBar({ members, onlineUsers, onInvite }: Pro
                     style={{ border: '2px solid rgba(34,197,94,0.6)' }}
                   />
                 )}
-                <Avatar name={m.displayName || '?'} src={m.avatarUrl} size="lg" colour={m.role === 'owner' ? '#F0B232' : '#23A559'} />
+                <Avatar name={m.displayName || '?'} src={m.avatarUrl} size="lg" colour={m.role === 'owner' ? '#F0B232' : '#23A559'} userId={m.userId} />
                 {isOnline && (
                   <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full" style={{ background: '#23A559', border: '2.5px solid #0A0A0F' }} />
                 )}

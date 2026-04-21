@@ -86,7 +86,7 @@ export default function CommunityRoomView({ onClose }: { onClose: () => void }) 
               <div key={msg.id} className={`group flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'} ${sameAsPrev ? 'mt-0.5' : 'mt-3'}`}>
                 {!isOwn && (
                   <div className={`shrink-0 w-8 ${sameAsPrev ? 'invisible' : ''}`}>
-                    <Avatar name={msg.displayName} src={msg.avatarUrl} size="sm" />
+                    <Avatar name={msg.displayName} src={msg.avatarUrl} size="sm" userId={msg.userId} />
                   </div>
                 )}
                 <div className={`flex flex-col max-w-[70%] gap-0.5 ${isOwn ? 'items-end' : 'items-start'}`}>
@@ -155,7 +155,7 @@ export default function CommunityRoomView({ onClose }: { onClose: () => void }) 
           ) : members.map((m) => (
             <div key={m.userId} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors">
               <div className="relative shrink-0">
-                <Avatar name={m.displayName} src={m.avatarUrl} size="sm" />
+                <Avatar name={m.displayName} src={m.avatarUrl} size="sm" userId={m.userId} />
                 <span
                   className="absolute -bottom-0.5 -right-0.5 w-[9px] h-[9px] rounded-full"
                   style={{ background: '#22C55E', boxShadow: '0 0 0 1.5px #0A0412' }}

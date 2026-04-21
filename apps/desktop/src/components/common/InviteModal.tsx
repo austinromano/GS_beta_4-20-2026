@@ -69,7 +69,7 @@ export default function InviteModal({ open, onClose, projectId, onInvited }: { o
                 className="w-full px-3 py-2 flex items-center gap-2.5 hover:bg-ghost-surface-hover transition-colors text-left"
               >
                 <div className="shrink-0">
-                  <Avatar name={u.displayName || u.email} src={u.avatarUrl} size="sm" />
+                  <Avatar name={u.displayName || u.email} src={u.avatarUrl} size="sm" userId={u.id} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-medium text-white truncate">{u.displayName}</p>

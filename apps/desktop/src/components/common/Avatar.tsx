@@ -3,6 +3,9 @@ interface AvatarProps {
   src?: string | null;
   colour?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  // If provided, the avatar becomes clickable and opens that user's profile
+  // overlay. Passing null/undefined keeps the avatar purely decorative.
+  userId?: string | null;
 }
 
 const sizeMap = {
@@ -21,12 +24,22 @@ function nameToColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export default function Avatar({ name, src, colour, size = 'md' }: AvatarProps) {
+export default function Avatar({ name, src, colour, size = 'md', userId }: AvatarProps) {
   const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   const bg = colour || nameToColor(name);
 
+  const openProfile = userId
+    ? (e: React.MouseEvent) => {
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('ghost-open-profile', { detail: { userId } }));
+      }
+    : undefined;
+
+  const interactive = userId
+    ? 'cursor-pointer hover:brightness-110 transition-[filter]'
+    : '';
+
   if (src) {
-    // Avatar paths are like /api/v1/auth/avatars/... — prepend server origin (strip /api/v1 if present)
     const base = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1').replace(/\/api\/v1$/, '');
     const imgSrc = src.startsWith('/') ? `${base}${src}` : src;
     return (
@@ -34,14 +47,18 @@ export default function Avatar({ name, src, colour, size = 'md' }: AvatarProps) 
         src={imgSrc}
         alt={name}
         draggable={false}
-        className={`${sizeMap[size]} rounded-[14px] object-cover shrink-0 select-none`}
+        onClick={openProfile}
+        title={userId ? name : undefined}
+        className={`${sizeMap[size]} rounded-[14px] object-cover shrink-0 select-none ${interactive}`}
       />
     );
   }
 
   return (
     <div
-      className={`${sizeMap[size]} rounded-[14px] flex items-center justify-center font-bold shrink-0`}
+      onClick={openProfile}
+      title={userId ? name : undefined}
+      className={`${sizeMap[size]} rounded-[14px] flex items-center justify-center font-bold shrink-0 ${interactive}`}
       style={{ backgroundColor: bg, color: '#000' }}
     >
       {initials}

@@ -66,7 +66,7 @@ function PresenceFriendsList({ friends, onlineActivity, selectProject, onRemoveF
               }}
             >
               <div className="rounded-[16px] overflow-hidden transition-all duration-200 shadow-[0_2px_8px_rgba(0,0,0,0.3)] hover:rounded-full">
-                <Avatar name={f.displayName} src={f.avatarUrl} size="lg" />
+                <Avatar name={f.displayName} src={f.avatarUrl} size="lg" userId={f.id} />
               </div>
               {isOnline ? (
                 <motion.span
