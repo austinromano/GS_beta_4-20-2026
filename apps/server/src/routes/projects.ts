@@ -157,6 +157,31 @@ projectRoutes.patch('/:id', async (c) => {
   return c.json({ success: true, data: updated });
 });
 
+// PUT /:id/arrangement — full arrangement blob (clip offsets, trims, volumes,
+// mute/solo, pitch). Editors can write. We store as a JSON string and emit
+// project-updated so every collaborator in the room refreshes their layout.
+projectRoutes.put('/:id/arrangement', async (c) => {
+  const user = c.get('user') as AuthUser;
+  const projectId = c.req.param('id');
+  const body = await c.req.json();
+
+  await assertEditor(projectId, user.id);
+
+  // Minimal shape check — accept whatever the client sends so long as clips
+  // is an array. The client owns the schema; server is just a passthrough.
+  if (!body || typeof body !== 'object' || !Array.isArray(body.clips)) {
+    throw new HTTPException(400, { message: 'arrangement.clips must be an array' });
+  }
+
+  await db.update(projects)
+    .set({ arrangementJson: JSON.stringify(body), updatedAt: new Date().toISOString() })
+    .where(eq(projects.id, projectId))
+    .run();
+
+  emitProjectUpdated(projectId, 'metadata-updated');
+  return c.json({ success: true });
+});
+
 projectRoutes.delete('/:id', async (c) => {
   const user = c.get('user') as AuthUser;
   const projectId = c.req.param('id');

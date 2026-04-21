@@ -31,6 +31,11 @@ export const projects = sqliteTable('projects', {
   genre: text('genre').default(''),
   projectType: text('project_type').default('project'),
   timeSignature: text('time_signature').default(''),
+  // Full arrangement state as JSON: clip offsets, trims, volumes, solo/mute,
+  // pitch, and parent ids for local-only split/dup clips. Lets the server
+  // persist the arrangement across sessions and sync it in real time between
+  // collaborators.
+  arrangementJson: text('arrangement_json'),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
 });

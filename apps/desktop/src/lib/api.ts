@@ -199,6 +199,10 @@ export const api = {
   markDmRead: (userId: string) => request<void>('POST', `/dm/${userId}/read`),
   getDmUnreadTotal: () => request<{ count: number }>('GET', '/dm/unread-count/total'),
 
+  // Arrangement — full clip layout blob, synced across collaborators
+  saveArrangement: (projectId: string, state: { clips: any[] }) =>
+    request<void>('PUT', `/projects/${projectId}/arrangement`, state),
+
   // Bookings — scheduled co-working sessions with friends
   listBookings: () => request<Booking[]>('GET', '/bookings'),
   createBooking: (data: { inviteeId: string; title?: string; scheduledAt: string; durationMin: number }) =>

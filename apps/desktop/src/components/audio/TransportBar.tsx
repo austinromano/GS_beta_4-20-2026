@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAudioStore } from '../../stores/audioStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { audioBufferCache, cacheBuffer, detectBpmFromName, formatTime } from '../../lib/audio';
+import { api } from '../../lib/api';
 import FrequencyBar, { type VizMode } from './FrequencyBar';
 
 export default function TransportBar({ tracks, projectId, projectTempo, onTempoChange, trackZoom, onZoomChange, vizMode }: { tracks?: any[]; projectId?: string; projectTempo?: number; onTempoChange?: (bpm: number) => void; trackZoom?: 'full' | 'half'; onZoomChange?: (zoom: 'full' | 'half') => void; vizMode?: VizMode }) {
@@ -57,38 +58,87 @@ export default function TransportBar({ tracks, projectId, projectTempo, onTempoC
     loadedRef.current.clear();
   }, [projectId]);
 
-  // Restore arrangement state once all tracks are loaded
-  const restoredRef = useRef<string | null>(null);
+  // Track the last arrangement blob we've applied from the server so we can
+  // (a) restore when the project first loads, and (b) re-apply when a
+  // collaborator pushes an update mid-session — while skipping echoes of
+  // our own just-saved blob so we don't fight our own optimistic updates.
+  const lastAppliedServerRef = useRef<string | null>(null);
+  const lastSentServerRef = useRef<string | null>(null);
+  const restoredProjectIdRef = useRef<string | null>(null);
+  const serverArrangementJson = useProjectStore((s) => s.currentProject?.arrangementJson ?? null);
+
+  // Initial restore (server first, then localStorage fallback) once all tracks
+  // have loaded into the audio store.
   useEffect(() => {
-    if (!tracks || !projectId || restoredRef.current === projectId) return;
+    if (!tracks || !projectId) return;
+    if (restoredProjectIdRef.current === projectId) return;
     const allLoaded = tracks.every((t: any) => !t.fileId || loadedRef.current.has(t.id));
     if (!allLoaded) return;
-    restoredRef.current = projectId;
+    restoredProjectIdRef.current = projectId;
+
     const fileIdMap = new Map<string, string>();
     for (const t of tracks) {
       if (t.fileId) fileIdMap.set(t.id, t.fileId);
     }
-    useAudioStore.getState().restoreArrangementState(projectId, fileIdMap);
-  }, [tracks, projectId, useAudioStore.getState().loadedTracks.size]);
 
-  // Auto-save arrangement state on changes
+    if (serverArrangementJson) {
+      try {
+        const parsed = JSON.parse(serverArrangementJson);
+        if (parsed && Array.isArray(parsed.clips)) {
+          useAudioStore.getState().applyArrangementClips(parsed.clips);
+          lastAppliedServerRef.current = serverArrangementJson;
+          return;
+        }
+      } catch { /* fall through to localStorage */ }
+    }
+    useAudioStore.getState().restoreArrangementState(projectId, fileIdMap);
+  }, [tracks, projectId, serverArrangementJson, useAudioStore.getState().loadedTracks.size]);
+
+  // Live sync: whenever the server's arrangementJson changes and it's not
+  // our own echo, apply it to the local audio store.
+  useEffect(() => {
+    if (!serverArrangementJson) return;
+    if (serverArrangementJson === lastAppliedServerRef.current) return;
+    if (serverArrangementJson === lastSentServerRef.current) {
+      lastAppliedServerRef.current = serverArrangementJson;
+      return;
+    }
+    try {
+      const parsed = JSON.parse(serverArrangementJson);
+      if (parsed && Array.isArray(parsed.clips)) {
+        useAudioStore.getState().applyArrangementClips(parsed.clips);
+        lastAppliedServerRef.current = serverArrangementJson;
+      }
+    } catch { /* ignore malformed blobs */ }
+  }, [serverArrangementJson]);
+
+  // Auto-save arrangement state on changes — writes localStorage (instant
+  // cache) AND pushes to the server so collaborators receive it live.
   const bufferVersion = useAudioStore((s) => s.bufferVersion);
   const arrangeLoadedTracks = useAudioStore((s) => s.loadedTracks);
   useEffect(() => {
     if (!projectId || !tracks || arrangeLoadedTracks.size === 0) return;
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       const fileIdMap = new Map<string, string>();
       for (const t of tracks) {
         if (t.fileId) fileIdMap.set(t.id, t.fileId);
       }
       useAudioStore.getState().saveArrangementState(projectId, fileIdMap);
+      try {
+        const state = useAudioStore.getState().buildArrangementState(fileIdMap);
+        lastSentServerRef.current = JSON.stringify(state);
+        await api.saveArrangement(projectId, state);
+      } catch (err) {
+        if (import.meta.env.DEV) console.warn('[TransportBar] saveArrangement server failed', err);
+      }
     }, 500);
     return () => clearTimeout(timer);
   }, [projectId, tracks, bufferVersion, arrangeLoadedTracks]);
 
   // Immediate save on explicit drops / other critical moments — bypasses the
   // 500 ms debounce so the arrangement survives if the plugin is closed
-  // right after a drag.
+  // right after a drag. Hits the server synchronously too so collaborators
+  // see the move without waiting for the debounce.
   useEffect(() => {
     if (!projectId || !tracks) return;
     const flush = () => {
@@ -98,6 +148,11 @@ export default function TransportBar({ tracks, projectId, projectTempo, onTempoC
         if (t.fileId) fileIdMap.set(t.id, t.fileId);
       }
       useAudioStore.getState().saveArrangementState(projectId, fileIdMap);
+      try {
+        const state = useAudioStore.getState().buildArrangementState(fileIdMap);
+        lastSentServerRef.current = JSON.stringify(state);
+        api.saveArrangement(projectId, state).catch(() => {});
+      } catch { /* ignore */ }
     };
     window.addEventListener('ghost-save-arrangement', flush);
     window.addEventListener('pagehide', flush);

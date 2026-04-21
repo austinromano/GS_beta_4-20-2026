@@ -9,6 +9,9 @@ export interface Project {
   key: string;
   genre: string;
   timeSignature: string;
+  // JSON-serialised arrangement blob (set by the client). Null when no
+  // arrangement has been saved yet.
+  arrangementJson?: string | null;
   createdAt: string;
   updatedAt: string;
 }

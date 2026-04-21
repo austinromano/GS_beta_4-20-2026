@@ -57,6 +57,12 @@ interface AudioState {
   splitTrack: (trackId: string, atTime: number) => string | null;
   saveArrangementState: (projectId: string, serverTrackFileIds: Map<string, string>) => void;
   restoreArrangementState: (projectId: string, serverTrackFileIds: Map<string, string>) => void;
+  // Build the current arrangement as a serialisable blob without persisting.
+  // Used by TransportBar to sync to the server.
+  buildArrangementState: (serverTrackFileIds: Map<string, string>) => { clips: any[] };
+  // Apply a server-provided arrangement blob. Mirrors restoreArrangementState
+  // but takes the clips directly instead of reading localStorage.
+  applyArrangementClips: (clips: any[]) => void;
   cleanup: () => void;
 }
 
@@ -547,6 +553,59 @@ export const useAudioStore = create<AudioState>((set, get) => {
 
     saveArrangementState: (projectId, serverTrackFileIds) => {
       saveArrangement(projectId, get().loadedTracks, serverTrackFileIds);
+    },
+
+    buildArrangementState: (serverTrackFileIds) => {
+      const clips: any[] = [];
+      get().loadedTracks.forEach((track, id) => {
+        const isChild = id.includes('_split_') || id.includes('_dup_');
+        const parentId = isChild ? id.split(/_split_|_dup_/)[0] : undefined;
+        clips.push({
+          trackId: id,
+          trimStart: track.trimStart,
+          trimEnd: track.trimEnd,
+          startOffset: track.startOffset,
+          volume: track.volume,
+          muted: track.muted,
+          soloed: track.soloed,
+          pitch: track.pitch,
+          parentTrackId: parentId,
+          parentFileId: parentId ? serverTrackFileIds.get(parentId) : undefined,
+        });
+      });
+      return { clips };
+    },
+
+    applyArrangementClips: (clips) => {
+      const { loadedTracks } = get();
+      const m = new Map(loadedTracks);
+      for (const clip of clips) {
+        const existing = m.get(clip.trackId);
+        if (existing) {
+          existing.trimStart = clip.trimStart;
+          existing.trimEnd = clip.trimEnd;
+          existing.startOffset = clip.startOffset;
+          existing.volume = clip.volume;
+          existing.muted = clip.muted;
+          existing.soloed = clip.soloed;
+          existing.pitch = clip.pitch;
+        } else if (clip.parentTrackId) {
+          const parentTrack = m.get(clip.parentTrackId);
+          if (parentTrack) {
+            m.set(clip.trackId, {
+              id: clip.trackId,
+              buffer: cloneBuffer(parentTrack.buffer),
+              source: null, gainNode: null,
+              volume: clip.volume, muted: clip.muted, soloed: clip.soloed,
+              bpm: parentTrack.bpm, pitch: clip.pitch,
+              trimStart: clip.trimStart, trimEnd: clip.trimEnd,
+              startOffset: clip.startOffset,
+            });
+          }
+        }
+      }
+      set({ loadedTracks: m, bufferVersion: get().bufferVersion + 1 });
+      recalcDuration();
     },
 
     restoreArrangementState: (projectId, _serverTrackFileIds) => {
