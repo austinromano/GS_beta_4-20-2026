@@ -199,7 +199,15 @@ export default function PluginLayout() {
   };
 
   const selectProject = async (id: string) => {
-    if (selectedProjectId) { leave(); audioCleanup(); }
+    if (selectedProjectId) {
+      // Flush any pending arrangement save *before* audioCleanup wipes
+      // the audio store. The debounced save in TransportBar runs 500 ms
+      // after the last move, so a quick project switch would otherwise
+      // drop the user's latest drag and lose it on return.
+      window.dispatchEvent(new CustomEvent('ghost-save-arrangement'));
+      leave();
+      audioCleanup();
+    }
     closeCommunityRoom();
     if (id === '__beats__') {
       const p = await createProject({ name: 'Untitled', projectType: 'beat' } as any);
@@ -336,12 +344,20 @@ export default function PluginLayout() {
   const handleSelectPack = (id: string) => {
     samplePackState.selectPack(id);
     setSelectedProjectId(null);
-    if (selectedProjectId) { leave(); audioCleanup(); }
+    if (selectedProjectId) {
+      window.dispatchEvent(new CustomEvent('ghost-save-arrangement'));
+      leave();
+      audioCleanup();
+    }
   };
 
   type DockMode = 'home' | 'explore' | 'messages' | 'marketplace';
   const goTo = (mode: DockMode) => {
-    if (selectedProjectId) { leave(); audioCleanup(); }
+    if (selectedProjectId) {
+      window.dispatchEvent(new CustomEvent('ghost-save-arrangement'));
+      leave();
+      audioCleanup();
+    }
     closeCommunityRoom();
     setSelectedProjectId(null);
     samplePackState.setSelectedPackId(null);
